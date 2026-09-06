@@ -1,0 +1,11 @@
+node_modules
+dist
+out
+*.log
+*.tsbuildinfo
+.DS_Store
+.env
+.env.local
+
+# 実際の試合動画（子どもが写っているため公開リポジトリに含めない）
+test-assets/
