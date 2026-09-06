@@ -1,5 +1,11 @@
 appId: com.gratcraft.minibasclip
 productName: MiniBas Clip
+# パッケージ版のみ app.getName() を "MiniBas Clip" にする（=データ保存先を開発版と分離する）。
+# 上のトップレベル productName はインストーラー/スタートメニュー表示名にしか使われず、
+# パッケージされた package.json 自体には反映されないため、これが無いと
+# 開発版・パッケージ版の両方が同じ "minibas-clip" フォルダ（%APPDATA%）を共有してしまう。
+extraMetadata:
+  productName: MiniBas Clip
 directories:
   buildResources: build
   output: dist
