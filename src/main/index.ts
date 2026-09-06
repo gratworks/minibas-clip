@@ -21,8 +21,8 @@ registerMediaProtocolPrivileges()
 
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 820,
+    width: 1600,
+    height: 960,
     minWidth: 1024,
     minHeight: 700,
     show: false,

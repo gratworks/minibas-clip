@@ -229,7 +229,7 @@ export function GameDetail({ gameId }: { gameId: number }): JSX.Element {
   const isVideoReady = selectedVideo?.proxyStatus === 'done'
 
   return (
-    <div className="max-w-6xl mx-auto p-8">
+    <div className="max-w-[1600px] mx-auto p-8">
       <div className="flex items-center justify-between mb-4">
         <button onClick={backToGames} className="text-sm text-slate-400 hover:text-slate-200">
           ← 試合一覧へ戻る
