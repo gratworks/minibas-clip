@@ -37,6 +37,12 @@ export function Games(): JSX.Element {
     reload()
   }
 
+  const deleteGame = async (id: number): Promise<void> => {
+    if (!window.confirm('この試合を削除しますか？（動画・タグ付けしたイベント・出場記録もすべて削除されます）')) return
+    await window.api.invoke('games:delete', { id })
+    reload()
+  }
+
   return (
     <div className="max-w-3xl mx-auto p-8">
       <div className="flex items-center justify-between mb-6">
@@ -99,20 +105,28 @@ export function Games(): JSX.Element {
                     <div className="h-px bg-court-border flex-1" />
                   </div>
                 )}
-                <button
-                  onClick={() => openGame(g.id)}
-                  className="w-full text-left bg-court-panel border border-court-border rounded-lg p-4 hover:border-court-accent transition-colors"
-                >
-                  <div className="flex justify-between">
-                    <span className="font-medium">
-                      {g.date} vs {g.opponent ?? '(未設定)'}
-                    </span>
-                    <span className="text-slate-400 text-sm">
-                      動画{g.videoCount} / イベント{g.eventCount}
-                    </span>
-                  </div>
-                  {g.venue && <p className="text-slate-500 text-sm mt-1">{g.venue}</p>}
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => openGame(g.id)}
+                    className="w-full text-left bg-court-panel border border-court-border rounded-lg p-4 hover:border-court-accent transition-colors"
+                  >
+                    <div className="flex justify-between pr-12">
+                      <span className="font-medium">
+                        {g.date} vs {g.opponent ?? '(未設定)'}
+                      </span>
+                      <span className="text-slate-400 text-sm">
+                        動画{g.videoCount} / イベント{g.eventCount}
+                      </span>
+                    </div>
+                    {g.venue && <p className="text-slate-500 text-sm mt-1">{g.venue}</p>}
+                  </button>
+                  <button
+                    onClick={() => deleteGame(g.id)}
+                    className="absolute top-4 right-4 text-xs text-red-400 hover:text-red-300"
+                  >
+                    削除
+                  </button>
+                </div>
               </li>
             )
           })}

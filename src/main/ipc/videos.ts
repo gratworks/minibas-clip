@@ -1,13 +1,12 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
-import { join } from 'path'
 import { mkdirSync, unlinkSync } from 'fs'
 import type { IpcRequest, IpcResponse } from '@shared/ipc'
 import type { Video } from '@shared/types'
 import { getDb } from '../db/connection'
 import { probeVideo } from '../ffmpeg/probe'
 import { transcodeProxy } from '../ffmpeg/proxy'
-import { enqueueJob } from '../jobs/queue'
-import { getProxyDir } from '../util/paths'
+import { enqueueJob, cancelJobsForVideo } from '../jobs/queue'
+import { getProxyDir, proxyPathFor } from '../util/paths'
 
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'm4v', 'avi', 'mkv']
 
@@ -34,8 +33,9 @@ function proxyDir(): string {
   return dir
 }
 
-function enqueueProxyJob(videoId: number, srcPath: string, durationSec: number | null): string {
-  const outPath = join(proxyDir(), `${videoId}.mp4`)
+function enqueueProxyJob(videoId: number, srcPath: string, durationSec: number | null, gameDate: string): string {
+  proxyDir() // ディレクトリが無ければ作成しておく
+  const outPath = proxyPathFor(gameDate, videoId)
 
   getDb().prepare('UPDATE videos SET proxy_status = ? WHERE id = ?').run('running', videoId)
 
@@ -78,6 +78,7 @@ export function registerVideosIpc(): void {
     }
 
     const db = getDb()
+    const game = db.prepare('SELECT date FROM games WHERE id = ?').get(req.gameId) as { date: string }
     const maxOrderRow = db
       .prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM videos WHERE game_id = ?')
       .get(req.gameId) as { m: number }
@@ -109,7 +110,7 @@ export function registerVideosIpc(): void {
       const video = toVideo(row)
       videos.push(video)
 
-      jobIds.push(enqueueProxyJob(videoId, filePath, probe?.durationSec ?? null))
+      jobIds.push(enqueueProxyJob(videoId, filePath, probe?.durationSec ?? null, game.date))
     }
 
     return { videos, jobIds }
@@ -124,14 +125,27 @@ export function registerVideosIpc(): void {
 
   ipcMain.handle('videos:remove', (_e, req: IpcRequest<'videos:remove'>): IpcResponse<'videos:remove'> => {
     const db = getDb()
-    const row = db.prepare('SELECT proxy_path FROM videos WHERE id = ?').get(req.id) as
-      | { proxy_path: string | null }
+    const row = db.prepare('SELECT proxy_path, game_id FROM videos WHERE id = ?').get(req.id) as
+      | { proxy_path: string | null; game_id: number }
       | undefined
+
+    // 変換中/待機中のジョブを先に止める。止めないと削除後もproxy変換が走り続け、
+    // DBから参照されない孤立した動画ファイルが残ってしまう
+    cancelJobsForVideo(req.id)
+
     // events も ON DELETE CASCADE で一緒に削除される（元動画ファイルはパス参照のみなので削除しない）
     db.prepare('DELETE FROM videos WHERE id = ?').run(req.id)
-    if (row?.proxy_path) {
+
+    // 変換完了済みならDB記録のパス、変換中だった場合は生成されるはずだったパスを推測して、
+    // どちらのケースでも掃除する
+    let proxyPath = row?.proxy_path ?? null
+    if (!proxyPath && row) {
+      const game = db.prepare('SELECT date FROM games WHERE id = ?').get(row.game_id) as { date: string } | undefined
+      if (game) proxyPath = proxyPathFor(game.date, req.id)
+    }
+    if (proxyPath) {
       try {
-        unlinkSync(row.proxy_path)
+        unlinkSync(proxyPath)
       } catch {
         // 既に無い場合などは無視
       }
@@ -139,9 +153,11 @@ export function registerVideosIpc(): void {
   })
 
   ipcMain.handle('videos:rebuildProxy', (_e, req: IpcRequest<'videos:rebuildProxy'>): IpcResponse<'videos:rebuildProxy'> => {
-    const row = getDb().prepare('SELECT * FROM videos WHERE id = ?').get(req.id) as any
+    const db = getDb()
+    const row = db.prepare('SELECT * FROM videos WHERE id = ?').get(req.id) as any
     if (!row) throw new Error('video not found')
-    const jobId = enqueueProxyJob(row.id, row.src_path, row.duration_sec)
+    const game = db.prepare('SELECT date FROM games WHERE id = ?').get(row.game_id) as { date: string }
+    const jobId = enqueueProxyJob(row.id, row.src_path, row.duration_sec, game.date)
     return { jobId }
   })
 }

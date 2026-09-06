@@ -18,7 +18,6 @@ export function registerMediaProtocolPrivileges(): void {
         standard: true,
         stream: true,
         supportFetchAPI: true,
-        bypassCSP: true,
         corsEnabled: true
       }
     }

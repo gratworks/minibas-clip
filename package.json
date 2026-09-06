@@ -1,6 +1,6 @@
 {
   "name": "minibas-clip",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "ミニバス試合映像のタグ付け・スタッツ集計・ハイライト書き出しアプリ",
   "main": "./out/main/index.js",
   "author": "グラートクラフト合同会社",

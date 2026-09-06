@@ -1,7 +1,10 @@
 import { ipcMain } from 'electron'
+import { unlinkSync } from 'fs'
 import type { IpcRequest, IpcResponse } from '@shared/ipc'
 import type { GameSummary } from '@shared/types'
 import { getDb } from '../db/connection'
+import { cancelJobsForVideo } from '../jobs/queue'
+import { proxyPathFor } from '../util/paths'
 
 const SUMMARY_SQL = `
   SELECT
@@ -73,7 +76,30 @@ export function registerGamesIpc(): void {
   })
 
   ipcMain.handle('games:delete', (_e, req: IpcRequest<'games:delete'>): IpcResponse<'games:delete'> => {
-    getDb().prepare('DELETE FROM games WHERE id = ?').run(req.id)
+    const db = getDb()
+    const game = db.prepare('SELECT date FROM games WHERE id = ?').get(req.id) as { date: string } | undefined
+    const videos = db.prepare('SELECT id, proxy_path FROM videos WHERE game_id = ?').all(req.id) as Array<{
+      id: number
+      proxy_path: string | null
+    }>
+
+    for (const v of videos) cancelJobsForVideo(v.id)
+
+    // videos は ON DELETE CASCADE でDB行は消えるが、変換済みのプロキシ動画ファイルは
+    // 別途消さないとディスク上に残り続けてしまう
+    db.prepare('DELETE FROM games WHERE id = ?').run(req.id)
+
+    for (const v of videos) {
+      // 変換完了済みならDB記録のパス、変換中だった場合は生成されるはずだったパスを推測して、
+      // どちらのケースでも掃除する
+      const proxyPath = v.proxy_path ?? (game ? proxyPathFor(game.date, v.id) : null)
+      if (!proxyPath) continue
+      try {
+        unlinkSync(proxyPath)
+      } catch {
+        // 既に無い場合などは無視
+      }
+    }
   })
 }
 

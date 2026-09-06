@@ -21,6 +21,15 @@ export function getExportDir(): string {
   return getOverride('exportDir') ?? join(app.getPath('videos'), 'MiniBas Clip')
 }
 
+/**
+ * 試合日・動画IDから、そのプロキシ変換ファイルが置かれる（はずの）パスを求める。
+ * エクスプローラーでファイル名を見ただけでどの試合の動画か分かるよう試合日を先頭に入れる。
+ * 変換中に削除された場合など、DBにまだ proxy_path が記録されていないケースの掃除にも使う。
+ */
+export function proxyPathFor(gameDate: string, videoId: number): string {
+  return join(getProxyDir(), `${gameDate}_${videoId}.mp4`)
+}
+
 /** path に null を渡すと既定値に戻す（設定を削除する） */
 export function setPathOverride(key: PathKey, path: string | null): void {
   const db = getDb()

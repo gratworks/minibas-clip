@@ -91,10 +91,24 @@ export function enqueueJob(kind: JobKind, run: JobRunner, opts?: { videoId?: num
 
 export function cancelJob(jobId: string): void {
   const job = jobs.get(jobId)
-  job?.controller.abort()
+  if (!job) return
+
   const idx = pending.indexOf(jobId)
   if (idx >= 0) {
+    // まだ開始していないジョブはここで直接キャンセル扱いにする
+    // （実行中ジョブは abort() 経由で runNext() 側の catch が状態遷移とemitを行う）
     pending.splice(idx, 1)
     jobs.delete(jobId)
+    job.status = 'canceled'
+    emit(job, 0, 'キャンセルしました', 'canceled')
+  } else {
+    job.controller.abort()
+  }
+}
+
+/** 動画削除時に、その動画に紐づく実行中/待機中のジョブ（proxy変換など）もまとめて止める */
+export function cancelJobsForVideo(videoId: number): void {
+  for (const job of jobs.values()) {
+    if (job.videoId === videoId) cancelJob(job.jobId)
   }
 }

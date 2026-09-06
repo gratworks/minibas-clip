@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 3
 
 const CREATE_TABLES = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -88,7 +88,7 @@ CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type_id);
 
 CREATE TABLE IF NOT EXISTS exports (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  game_id INTEGER REFERENCES games(id),
+  game_id INTEGER REFERENCES games(id) ON DELETE SET NULL,
   player_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
   kind TEXT NOT NULL CHECK (kind IN ('clip', 'highlight', 'csv')),
   output_path TEXT NOT NULL,
@@ -215,6 +215,44 @@ function migrateV1ToV2(db: DatabaseSync): void {
   }
 }
 
+/**
+ * v2までの exports.game_id にも ON DELETE句が無く、書き出し履歴が残る試合を
+ * 削除しようとすると外部キー制約違反で失敗していた。ON DELETE SET NULL に修正する
+ * （player_id と同様、履歴レコード自体は消さず試合との紐付けだけ外す）。
+ */
+function migrateV2ToV3(db: DatabaseSync): void {
+  db.exec('PRAGMA foreign_keys = OFF')
+  db.exec('BEGIN')
+  try {
+    db.exec(`
+      CREATE TABLE exports_v3 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER REFERENCES games(id) ON DELETE SET NULL,
+        player_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('clip', 'highlight', 'csv')),
+        output_path TEXT NOT NULL,
+        event_ids TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'done',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `)
+    db.exec(`
+      INSERT INTO exports_v3 (id, game_id, player_id, kind, output_path, event_ids, status, created_at)
+      SELECT id, game_id, player_id, kind, output_path, event_ids, status, created_at
+      FROM exports
+    `)
+    db.exec('DROP TABLE exports')
+    db.exec('ALTER TABLE exports_v3 RENAME TO exports')
+
+    db.exec('COMMIT')
+  } catch (err) {
+    db.exec('ROLLBACK')
+    throw err
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON')
+  }
+}
+
 export function runMigrations(db: DatabaseSync): void {
   db.exec(CREATE_TABLES)
 
@@ -223,6 +261,9 @@ export function runMigrations(db: DatabaseSync): void {
 
   if (currentVersion < 2) {
     migrateV1ToV2(db)
+  }
+  if (currentVersion < 3) {
+    migrateV2ToV3(db)
   }
 
   if (!versionRow) {
