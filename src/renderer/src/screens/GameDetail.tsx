@@ -42,6 +42,7 @@ export function GameDetail({ gameId }: { gameId: number }): JSX.Element {
 
   const playerRef = useRef<VideoPlayerHandle>(null)
   const pendingSeekRef = useRef<number | null>(null)
+  const quarterInitRef = useRef(false)
 
   const reload = (): void => {
     window.api.invoke('games:get', { id: gameId }).then(setGame)
@@ -49,7 +50,19 @@ export function GameDetail({ gameId }: { gameId: number }): JSX.Element {
       setVideos(list)
       if (!selectedVideoId && list.length > 0) selectVideo(list[0].id)
     })
-    window.api.invoke('events:listByGame', { gameId }).then(setEvents)
+    window.api.invoke('events:listByGame', { gameId }).then((list) => {
+      setEvents(list)
+      // 中断して後で再開した時にQ1へ黙って戻ってしまわないよう、開いた時だけ
+      // 最後にタグ付けしたイベントのクォーターを引き継ぐ（以降のタグ付けでは上書きしない）
+      if (!quarterInitRef.current) {
+        quarterInitRef.current = true
+        const lastEvent = list.reduce<EventRow | null>(
+          (max, ev) => (max === null || ev.id > max.id ? ev : max),
+          null
+        )
+        if (lastEvent?.quarter) setQuarter(lastEvent.quarter)
+      }
+    })
     window.api
       .invoke('lineup:listByGame', { gameId })
       .then((list) => setAppearances(new Set(list.map((a) => `${a.playerId}-${a.quarter}`))))
