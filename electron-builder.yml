@@ -1,0 +1,23 @@
+appId: com.gratcraft.minibasclip
+productName: MiniBas Clip
+directories:
+  buildResources: build
+  output: dist
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+asarUnpack:
+  - resources/**
+  - '**/node_modules/ffmpeg-static/**'
+  - '**/node_modules/ffprobe-static/**'
+extraResources:
+  - from: resources/fonts
+    to: fonts
+win:
+  target: nsis
+  artifactName: ${productName}-${version}-setup.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
