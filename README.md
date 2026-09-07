@@ -8,6 +8,8 @@
 
 ![MiniBas Clip タグ付け画面](docs/screenshot.jpg)
 
+![MiniBas Clip スタッツ画面](docs/screenshot-stats.jpg)
+
 ## ダウンロード
 
 [Releases](../../releases) から最新のインストーラー（`MiniBas Clip-x.x.x-setup.exe`）をダウンロードしてください。
