@@ -6,6 +6,8 @@
 
 映像・データはすべてローカル保存で、クラウドは使用しません。
 
+![MiniBas Clip タグ付け画面](docs/screenshot.jpg)
+
 ## ダウンロード
 
 [Releases](../../releases) から最新のインストーラー（`MiniBas Clip-x.x.x-setup.exe`）をダウンロードしてください。
