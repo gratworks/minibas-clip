@@ -129,6 +129,19 @@ const DEFAULT_EVENT_TYPES: Array<Omit<Parameters<typeof insertEventType>[1], 'id
   { code: 'hl_run', label: 'ナイスラン', category: 'highlight', keyBinding: 'B', preSec: 4, postSec: 2, color: '#06B6D4', points: 0, sortOrder: 150 }
 ]
 
+/**
+ * ユーザーが名称を自由に付けられるカスタムタグ枠（highlight 系、スタッツ集計対象外）。
+ * 存在に気づけるよう初期状態から有効（タグ付け画面に「カスタム1〜3」として表示）で、
+ * 名称・色・有効/無効は環境設定で変更する。
+ * 既存DBにも追加されるよう、既定タグの初回投入とは別に毎回 INSERT OR IGNORE する。
+ * code は `@shared/types` の CUSTOM_EVENT_TYPE_CODES と揃える。
+ */
+const CUSTOM_EVENT_TYPES: Array<Parameters<typeof insertEventType>[1]> = [
+  { code: 'custom_1', label: 'カスタム1', category: 'highlight', keyBinding: '1', preSec: 4, postSec: 2, color: '#F472B6', points: 0, sortOrder: 160 },
+  { code: 'custom_2', label: 'カスタム2', category: 'highlight', keyBinding: '2', preSec: 4, postSec: 2, color: '#FB923C', points: 0, sortOrder: 170 },
+  { code: 'custom_3', label: 'カスタム3', category: 'highlight', keyBinding: '3', preSec: 4, postSec: 2, color: '#A3E635', points: 0, sortOrder: 180 }
+]
+
 function insertEventType(
   db: DatabaseSync,
   row: {
@@ -141,13 +154,14 @@ function insertEventType(
     color: string
     points: number
     sortOrder: number
+    enabled?: 0 | 1
   }
 ): void {
   db.prepare(
     `INSERT OR IGNORE INTO event_types
       (code, label, category, key_binding, pre_sec, post_sec, color, points, sort_order, enabled)
-     VALUES (@code, @label, @category, @keyBinding, @preSec, @postSec, @color, @points, @sortOrder, 1)`
-  ).run(row)
+     VALUES (@code, @label, @category, @keyBinding, @preSec, @postSec, @color, @points, @sortOrder, @enabled)`
+  ).run({ ...row, enabled: row.enabled ?? 1 })
 }
 
 /**
@@ -283,4 +297,6 @@ export function runMigrations(db: DatabaseSync): void {
       throw err
     }
   }
+
+  for (const row of CUSTOM_EVENT_TYPES) insertEventType(db, row)
 }

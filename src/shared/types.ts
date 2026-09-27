@@ -44,6 +44,9 @@ export interface Video {
 
 export type EventCategory = 'stat' | 'highlight'
 
+/** 環境設定で名称・色・有効/無効を編集できるカスタムタグ枠（src/main/db/migrations.ts で投入） */
+export const CUSTOM_EVENT_TYPE_CODES = ['custom_1', 'custom_2', 'custom_3'] as const
+
 export interface EventType {
   id: number
   code: string

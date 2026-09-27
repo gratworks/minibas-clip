@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
+import { CUSTOM_EVENT_TYPE_CODES, type EventType } from '@shared/types'
 import { useAppStore } from '../store/useAppStore'
+
+type CustomTagDraft = Pick<EventType, 'code' | 'label' | 'color' | 'enabled' | 'keyBinding'>
 
 type PathKey = 'exportDir' | 'proxyDir'
 
@@ -19,10 +22,20 @@ export function Settings(): JSX.Element {
   const [paths, setPaths] = useState<{ proxyDir: string; exportDir: string } | null>(null)
   const [teamName, setTeamName] = useState('')
   const [teamNameSaved, setTeamNameSaved] = useState(false)
+  const [customTags, setCustomTags] = useState<CustomTagDraft[]>([])
+  const [customTagsSaved, setCustomTagsSaved] = useState(false)
 
   const reload = (): void => {
     window.api.invoke('settings:getPaths', undefined).then(setPaths)
     window.api.invoke('settings:get', { key: 'teamName' }).then((v) => setTeamName(v ?? ''))
+    window.api.invoke('eventTypes:list', undefined).then((list) => {
+      const codes: readonly string[] = CUSTOM_EVENT_TYPE_CODES
+      setCustomTags(
+        list
+          .filter((et) => codes.includes(et.code))
+          .map(({ code, label, color, enabled, keyBinding }) => ({ code, label, color, enabled, keyBinding }))
+      )
+    })
   }
 
   useEffect(reload, [])
@@ -31,6 +44,28 @@ export function Settings(): JSX.Element {
     await window.api.invoke('settings:set', { key: 'teamName', value: teamName.trim() })
     setTeamNameSaved(true)
     setTimeout(() => setTeamNameSaved(false), 2000)
+  }
+
+  const updateCustomTag = (code: string, patch: Partial<CustomTagDraft>): void => {
+    setCustomTagsSaved(false)
+    setCustomTags((prev) => prev.map((t) => (t.code === code ? { ...t, ...patch } : t)))
+  }
+
+  const handleSaveCustomTags = async (): Promise<void> => {
+    if (customTags.some((t) => t.enabled && !t.label.trim())) {
+      window.alert('使用するタグには名称を入力してください')
+      return
+    }
+    for (const t of customTags) {
+      await window.api.invoke('eventTypes:upsert', {
+        code: t.code,
+        label: t.label.trim() || t.code,
+        color: t.color,
+        enabled: t.enabled
+      })
+    }
+    setCustomTagsSaved(true)
+    setTimeout(() => setCustomTagsSaved(false), 2000)
   }
 
   const handleChange = async (key: PathKey): Promise<void> => {
@@ -71,6 +106,49 @@ export function Settings(): JSX.Element {
             {teamNameSaved ? '保存しました' : '保存'}
           </button>
         </div>
+      </div>
+
+      <div className="bg-court-panel border border-court-border rounded-lg p-4 mb-4">
+        <div className="text-sm font-medium mb-1">カスタムタグ</div>
+        <p className="text-xs text-slate-500 mb-3">
+          好きな名称のタグを3つまで作れます。「使う」にチェックするとタグ付け画面にボタンが表示されます（スタッツ集計には含まれず、ハイライト用のタグとして扱います）。
+          名称を変えると、そのタグを付けた過去のイベントの表示名も変わります。
+        </p>
+        <div className="space-y-2 mb-3">
+          {customTags.map((t) => (
+            <div key={t.code} className="flex items-center gap-2">
+              <label className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={t.enabled === 1}
+                  onChange={(e) => updateCustomTag(t.code, { enabled: e.target.checked ? 1 : 0 })}
+                />
+                使う
+              </label>
+              <span className="text-xs text-slate-500 w-12 whitespace-nowrap">キー {t.keyBinding}</span>
+              <input
+                value={t.label}
+                onChange={(e) => updateCustomTag(t.code, { label: e.target.value })}
+                placeholder="例: ナイスシュート"
+                maxLength={20}
+                className="flex-1 bg-court-bg border border-court-border rounded px-2 py-1 text-slate-100 text-sm"
+              />
+              <input
+                type="color"
+                value={t.color}
+                onChange={(e) => updateCustomTag(t.code, { color: e.target.value })}
+                className="w-8 h-8 bg-transparent border-0 cursor-pointer"
+                title="ボタンの色"
+              />
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={handleSaveCustomTags}
+          className="text-xs px-3 py-1 rounded bg-court-accent font-medium whitespace-nowrap"
+        >
+          {customTagsSaved ? '保存しました' : '保存'}
+        </button>
       </div>
 
       {(['exportDir', 'proxyDir'] as const).map((key) => (
